@@ -7,6 +7,7 @@ use std::time::Duration;
 use axum::Router;
 use axum::routing::get;
 use http::StatusCode;
+use hyper_util::rt::TokioExecutor;
 use openssl::ssl::{Ssl, SslAcceptor, SslMethod};
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
@@ -14,7 +15,7 @@ use tokio::net::TcpListener;
 use tokio::time::timeout;
 use tokio_openssl::SslStream;
 
-use crate::{ClientContext, Error, Result, TokioExecutor};
+use crate::{ClientContext, Error, Result};
 
 mod service;
 use service::ServerService;
@@ -48,7 +49,7 @@ impl Server {
             .fallback(StatusCode::NOT_FOUND)
             .with_state(ctx.clone());
 
-        let conn_handler = Arc::new(hyper_util::server::conn::auto::Builder::new(TokioExecutor));
+        let conn_handler = Arc::new(hyper_util::server::conn::auto::Builder::new(TokioExecutor::new()));
         Ok(Server { listen, ctx, router, conn_handler})
     }
 

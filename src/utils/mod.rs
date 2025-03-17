@@ -91,16 +91,3 @@ pub fn unix_time() -> u64 {
     let duration = now.duration_since(UNIX_EPOCH).unwrap_or(Duration::ZERO);
     duration.as_secs()
 }
-
-#[derive(Clone, Copy)]
-pub struct TokioExecutor;
-
-impl<Fut> hyper::rt::Executor<Fut> for TokioExecutor
-where
-    Fut: std::future::Future + Send + 'static,
-    Fut::Output: Send + 'static,
-{
-    fn execute(&self, fut: Fut) {
-        tokio::spawn(fut);
-    }
-}

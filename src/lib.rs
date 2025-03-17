@@ -17,7 +17,7 @@ mod utils;
 
 use crate::error::Error;
 use crate::server::Server;
-use crate::utils::{TokioExecutor, unix_time};
+use crate::utils::unix_time;
 
 pub type Result<T, E = error::Error> = std::result::Result<T, E>;
 
