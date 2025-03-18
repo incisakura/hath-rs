@@ -8,7 +8,7 @@ use tokio::io::{AsyncSeekExt, AsyncWriteExt};
 
 use crate::context::ClientContext;
 use crate::error::Error;
-use crate::utils::sha1_hex_concat;
+use crate::utils::sha1_digest;
 use crate::Result;
 use crate::CLIENT_VER;
 
@@ -25,7 +25,7 @@ impl ClientContext {
         let time = crate::unix_time().to_string();
 
         // key
-        let key = sha1_hex_concat(&["hentai@home-", act, "-", &add, "-", &id, "-", &time, "-", &self.key]);
+        let key = sha1_digest(&["hentai@home", act, &add, &id, &time, &self.key]);
 
         // uri
         let path = format!(
@@ -148,7 +148,7 @@ impl ClientContext {
         let id = self.id.to_string();
 
         // key
-        let key = sha1_hex_concat(&["hentai@home-", act, "-", &add, "-", &id, "-", &time, "-", &self.key]);
+        let key = sha1_digest(&["hentai@home", act, &add, &id, &time, &self.key]);
 
         // uri
         let path = format!(

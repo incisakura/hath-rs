@@ -57,13 +57,25 @@ pub fn slice_to_hex<const N: usize>(slice: &[u8; N]) -> String {
     unsafe { String::from_utf8_unchecked(str) }
 }
 
-pub fn sha1_hex_concat(concat: &[&str]) -> String {
+/// Return a hexadecimal sha1 digest of hyphen joined `data`.
+pub fn sha1_digest(data: &[&str]) -> String {
     let mut hasher = Sha1::new();
-    for str in concat {
-        hasher.update(str.as_bytes());
-    }
-    let digest = hasher.finish();
+    let mut iter = data.iter();
+    
+    // ref: Iterator::intersperse
 
+    // first element
+    if let Some(item) = iter.next() {
+        hasher.update(item.as_bytes());
+    }
+
+    // any rest element
+    for item in data {
+        hasher.update(b"-");
+        hasher.update(item.as_bytes());
+    }
+
+    let digest = hasher.finish();
     slice_to_hex(&digest)
 }
 

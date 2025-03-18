@@ -6,7 +6,7 @@ use hyper::{Response, StatusCode};
 
 use crate::cache::{CacheFile, CacheStream};
 use crate::server::ServerContext;
-use crate::utils::sha1_hex_concat;
+use crate::utils::sha1_digest;
 use crate::{Error, Result, unix_time};
 
 pub(crate) async fn file_fetch(
@@ -24,7 +24,8 @@ pub(crate) async fn file_fetch(
 
     let (time_str, hash_part) = data.keystamp.split_once('-').ok_or(Error::BadRequest)?;
     let time: u64 = time_str.parse()?;
-    let hash = sha1_hex_concat(&[time_str, "-", file_id.as_str(), "-", &ctx.client.key, "-hotlinkthis"]);
+
+    let hash = sha1_digest(&[time_str, file_id.as_str(), &ctx.client.key, "hotlinkthis"]);
     if unix_time().abs_diff(time) > 900 || !hash[..10].eq(hash_part) {
         return Err(Error::BadRequest);
     }

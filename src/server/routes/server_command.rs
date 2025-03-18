@@ -11,7 +11,7 @@ use hyper::{Response, Uri};
 use crate::client::downloader::download_gallery;
 use crate::server::ServerContext;
 use crate::unix_time;
-use crate::utils::sha1_hex_concat;
+use crate::utils::sha1_digest;
 use crate::{Error, Result};
 
 use super::SpeedTest;
@@ -22,20 +22,18 @@ pub(crate) async fn server_command(
 ) -> Result<Response<Body>> {
     let key = key.split_once('/').map_or(key.as_str(), |(x, _)| x);
 
-    let hash = sha1_hex_concat(&[
-        "hentai@home-servercmd-",
+    let digest = sha1_digest(&[
+        "hentai@home",
+        "servercmd",
         &command,
-        "-",
         &extra,
-        "-",
         &ctx.client.id.to_string(),
-        "-",
         &time.to_string(),
-        "-",
         &ctx.client.key.to_string(),
     ]);
+
     let sys_time = unix_time();
-    if !(time >= sys_time || sys_time - time <= 300) || hash != key {
+    if !(time >= sys_time || sys_time - time <= 300) || key != digest {
         return Err(Error::BadRequest);
     }
     let extra = parse_extra(&extra);

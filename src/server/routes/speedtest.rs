@@ -6,25 +6,23 @@ use axum::extract::{Path, State};
 use hyper::body::{Bytes, Frame, SizeHint};
 
 use crate::server::ServerContext;
-use crate::utils::sha1_hex_concat;
+use crate::utils::sha1_digest;
 use crate::{Error, Result};
 
 pub(crate) async fn speed_test(
     Path((size, time, key, _nonce)): Path<(usize, String, String, String)>,
     State(ctx): State<ServerContext>,
 ) -> Body {
-    let hash = sha1_hex_concat(&[
-        "hentai@home-speedtest-",
+    let digest = sha1_digest(&[
+        "hentai@home",
+        "speedtest",
         &size.to_string(),
-        "-",
         &time,
-        "-",
         &ctx.client.id.to_string(),
-        "-",
         &ctx.client.key.to_string(),
     ]);
 
-    if hash == key {
+    if key == digest {
         return Body::new(SpeedTest::new(size));
     }
 
