@@ -13,9 +13,9 @@ simple_logger = "5.0"
 
 hyper = { version = "1.5", features = ["client", "server"] }
 hyper-util = { version = "0.1", features = ["client", "client-legacy", "server-auto", "http1", "http2"] }
-http = "1.1"
+http = "*"
 http-body = "*"
-http-body-util = "0.1"
+http-body-util = "*"
 axum = { version = "0.8", default-features = false, features = ["http1", "http2", "tokio"] }
 tower = "0.5"
 
