@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use http::HeaderValue;
 
 use crate::utils::hex_to_u8;
-use crate::ClientContext;
+use crate::AppContext;
 
 pub struct FetchParseError;
 
@@ -15,7 +15,7 @@ pub struct CacheFile {
 }
 
 impl CacheFile {
-    pub fn path(&self, ctx: &ClientContext) -> PathBuf {
+    pub fn path(&self, ctx: &AppContext) -> PathBuf {
         let mut path = ctx.cache_dir.clone();
         let filename = self.filename(false);
         path.push(filename.get(..2).unwrap());

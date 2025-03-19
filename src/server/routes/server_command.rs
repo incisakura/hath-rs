@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 use axum::body::Body;
@@ -9,16 +10,14 @@ use http_body_util::BodyExt;
 use hyper::{Response, Uri};
 
 use crate::client::downloader::download_gallery;
-use crate::server::ServerContext;
-use crate::unix_time;
 use crate::utils::sha1_digest;
-use crate::{Error, Result};
+use crate::{AppContext, Error, Result, ServerContext, unix_time};
 
 use super::SpeedTest;
 
 pub(crate) async fn server_command(
-    State(ctx): State<ServerContext>,
     Path((command, extra, time, key)): Path<(String, String, u64, String)>,
+    State(ctx): State<ServerContext>,
 ) -> Result<Response<Body>> {
     let key = key.split_once('/').map_or(key.as_str(), |(x, _)| x);
 
@@ -27,9 +26,9 @@ pub(crate) async fn server_command(
         "servercmd",
         &command,
         &extra,
-        &ctx.client.id.to_string(),
+        &ctx.id.to_string(),
         &time.to_string(),
-        &ctx.client.key.to_string(),
+        &ctx.key.to_string(),
     ]);
 
     let sys_time = unix_time();
@@ -46,17 +45,17 @@ pub(crate) async fn server_command(
         )),
         "threaded_proxy_test" => service.threaded_proxy_test(&ctx).await,
         "refresh_settings" => {
-            ctx.client.update_settings().await?;
+            ctx.update_settings().await?;
             Ok(Response::new(Body::empty()))
         }
         "refresh_certs" => {
-            let file = ctx.client.download_cert().await?;
+            let file = ctx.download_cert().await?;
             ctx.reload_cert(file).await?;
             Ok(Response::new(Body::empty()))
         }
         "start_downloader" => {
             tokio::spawn(async move {
-                let download_meta = match ctx.client.download_gallery(None).await {
+                let download_meta = match ctx.download_gallery(None).await {
                     Ok(x) => x,
                     Err(e) => {
                         log::error!("Error in download gallery metadata: {}", e);
@@ -64,8 +63,8 @@ pub(crate) async fn server_command(
                     }
                 };
 
-                let client = ctx.client.clone();
-                if let Err(e) = download_gallery(client, download_meta).await {
+                let client: &Arc<AppContext> = &ctx;
+                if let Err(e) = download_gallery(client.clone(), download_meta).await {
                     log::error!("Error in downloading gallery: {}", e);
                 }
             });
@@ -91,7 +90,7 @@ struct CommandService<'a> {
 }
 
 impl<'a> CommandService<'a> {
-    async fn threaded_proxy_test(&self, ctx: &ServerContext) -> Result<Response<Body>> {
+    async fn threaded_proxy_test(&self, ctx: &Arc<AppContext>) -> Result<Response<Body>> {
         let hostname = self.extra.get("hostname").ok_or(Error::BadRequest)?;
         let port = self.extra.get("port").ok_or(Error::BadRequest)?;
         let testsize = self.extra.get("testsize").ok_or(Error::BadRequest)?;
@@ -113,7 +112,7 @@ impl<'a> CommandService<'a> {
         // create tasks
         let mut vec = Vec::with_capacity(testcount);
         for _ in 0..testcount {
-            let ctx = ctx.client.clone();
+            let ctx = ctx.clone();
             let uri = uri.clone();
             vec.push(tokio::spawn(async move {
                 let res = ctx.client.get(uri).await?;

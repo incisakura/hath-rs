@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 
 /// /t/$testsize/$testtime/$testkey
 mod speedtest;

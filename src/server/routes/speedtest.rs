@@ -5,9 +5,8 @@ use axum::body::Body;
 use axum::extract::{Path, State};
 use hyper::body::{Bytes, Frame, SizeHint};
 
-use crate::server::ServerContext;
 use crate::utils::sha1_digest;
-use crate::{Error, Result};
+use crate::{Error, Result, ServerContext};
 
 pub(crate) async fn speed_test(
     Path((size, time, key, _nonce)): Path<(usize, String, String, String)>,
@@ -18,8 +17,8 @@ pub(crate) async fn speed_test(
         "speedtest",
         &size.to_string(),
         &time,
-        &ctx.client.id.to_string(),
-        &ctx.client.key.to_string(),
+        &ctx.id.to_string(),
+        &ctx.key.to_string(),
     ]);
 
     if key == digest {

@@ -5,32 +5,31 @@ use http::header::CONTENT_TYPE;
 use hyper::{Response, StatusCode};
 
 use crate::cache::{CacheFile, CacheStream};
-use crate::server::ServerContext;
 use crate::utils::sha1_digest;
-use crate::{Error, Result, unix_time};
+use crate::{Error, Result, ServerContext, unix_time};
 
 pub(crate) async fn file_fetch(
-    State(ctx): State<ServerContext>,
     Path((file_id, extra)): Path<(String, String)>,
+    State(ctx): State<ServerContext>,
 ) -> Result<Response<Body>> {
     let extra = extra.split_once('/').map_or(extra.as_str(), |(x, _)| x);
 
     let file = CacheFile::try_from(file_id.as_str()).map_err(|_| Error::BadRequest)?;
     let data = FileFetchExtra::from_path_parts(&extra).ok_or(Error::BadRequest)?;
 
-    if !ctx.client.in_static_range(&file.static_range()) {
-       return Err(Error::BadRequest);
+    if !ctx.in_static_range(&file.static_range()) {
+        return Err(Error::BadRequest);
     }
 
     let (time_str, hash_part) = data.keystamp.split_once('-').ok_or(Error::BadRequest)?;
     let time: u64 = time_str.parse()?;
 
-    let hash = sha1_digest(&[time_str, file_id.as_str(), &ctx.client.key, "hotlinkthis"]);
+    let hash = sha1_digest(&[time_str, file_id.as_str(), &ctx.key, "hotlinkthis"]);
     if unix_time().abs_diff(time) > 900 || !hash[..10].eq(hash_part) {
         return Err(Error::BadRequest);
     }
 
-    let stream = CacheStream::new(&ctx.client, &file, (data.fileindex, data.xres)).await?;
+    let stream = CacheStream::new(&ctx, &file, (data.fileindex, data.xres)).await?;
     if let Some(s) = stream {
         Ok(Response::builder().header(CONTENT_TYPE, file.info.typ.mine_type()).body(Body::new(s)).unwrap())
     } else {

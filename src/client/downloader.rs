@@ -4,9 +4,8 @@ use std::sync::Arc;
 use http_body_util::BodyExt;
 use tokio::io::AsyncWriteExt;
 
-use crate::context::ClientContext;
 use crate::utils::file_sha1;
-use crate::Result;
+use crate::{AppContext, Result};
 
 #[derive(Default, Debug)]
 pub struct DownloadMeta {
@@ -97,7 +96,7 @@ impl GalleryFile {
         }
     }
 
-    pub async fn download(&self, ctx: &ClientContext, todir: &Path, gid: u32) -> Result<()> {
+    pub async fn download(&self, ctx: &AppContext, todir: &Path, gid: u32) -> Result<()> {
         let mut path = todir.to_path_buf();
         path.push(format!("{}.{}", self.filename, self.filetype));
 
@@ -154,7 +153,7 @@ fn take_first_100_chars(s: &str) -> &str {
     &s[..s.len().min(125)]
 }
 
-pub async fn download_gallery(ctx: Arc<ClientContext>, meta: DownloadMeta) -> Result<()> {
+pub async fn download_gallery(ctx: Arc<AppContext>, meta: DownloadMeta) -> Result<()> {
     // create download directory
     let mut todir = ctx.data_dir.clone();
     todir.push("downloads");

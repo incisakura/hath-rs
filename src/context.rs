@@ -1,26 +1,32 @@
 use std::collections::HashSet;
-use std::net::IpAddr;
 use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
+use std::sync::RwLock;
 
 use crate::client::HttpClient;
-use crate::error::Error;
 use crate::utils::Limiter;
-use crate::Config;
+use crate::{Config, Error};
 
-pub struct ClientContext {
+#[derive(Default)]
+pub struct MutContext {
+    pub static_range: HashSet<u16>,
+}
+
+pub struct AppContext {
+    // Immutable Context
     pub id: u32,
     pub key: String,
-    pub limiter: Limiter,
     pub cache_dir: PathBuf,
     pub data_dir: PathBuf,
+
+    // Mutable Context
+    pub limiter: Limiter,
     pub mut_context: RwLock<MutContext>,
 
     pub client: HttpClient,
 }
 
-impl ClientContext {
-    pub fn from_config(mut config: Config) -> Result<Arc<ClientContext>, openssl::error::ErrorStack> {
+impl AppContext {
+    pub fn from_config(mut config: Config) -> Result<AppContext, openssl::error::ErrorStack> {
         // speedlimit remap
         if config.speedlimit <= 0.0 {
             config.speedlimit = f64::INFINITY;
@@ -29,7 +35,7 @@ impl ClientContext {
         let limiter = Limiter::new(config.speedlimit);
         let client = HttpClient::new(limiter.clone())?;
 
-        let ctx = Arc::new(ClientContext {
+        Ok(AppContext {
             id: config.id,
             key: config.key,
             limiter,
@@ -37,8 +43,7 @@ impl ClientContext {
             data_dir: config.data_dir,
             mut_context: RwLock::new(MutContext::default()),
             client,
-        });
-        Ok(ctx)
+        })
     }
 
     pub fn in_static_range(&self, range: &u16) -> bool {
@@ -61,15 +66,9 @@ impl ClientContext {
                         Ok(())
                     })?;
                 }
-                _ => log::debug!("unimplemented setting: {}", key),
+                _ => log::debug!("unimplemented setting: {}: {}", key, val),
             }
         }
         Ok(())
     }
-}
-
-#[derive(Default)]
-pub struct MutContext {
-    pub static_range: HashSet<u16>,
-    pub server_ip: HashSet<IpAddr>,
 }

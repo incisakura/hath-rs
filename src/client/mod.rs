@@ -6,19 +6,16 @@ use hyper::body::{Body, Incoming};
 use tokio::fs::{File, OpenOptions};
 use tokio::io::{AsyncSeekExt, AsyncWriteExt};
 
-use crate::context::ClientContext;
-use crate::error::Error;
+use crate::{CLIENT_VER, AppContext, Result, Error};
 use crate::utils::sha1_digest;
-use crate::Result;
-use crate::CLIENT_VER;
 
-pub mod downloader;
 mod connector;
+pub mod downloader;
 
-use downloader::DownloadMeta;
 pub(crate) use connector::HttpClient;
+use downloader::DownloadMeta;
 
-impl ClientContext {
+impl AppContext {
     fn get_uri(&self, act: &str, add: &str) -> Uri {
         // parameters
         let id = self.id.to_string();
@@ -62,7 +59,10 @@ impl ClientContext {
         let first = iter.next();
         match first {
             Some("OK") => {}
-            Some(_) => return Err(Error::BadResponse),
+            Some(err) => {
+                log::error!("request error: {err}");
+                return Err(Error::BadResponse);
+            }
             None => return Err(Error::BadResponse),
         }
 
@@ -134,13 +134,13 @@ impl ClientContext {
     }
 
     /// # Argument
-    /// 
+    ///
     /// - downloaded: tell server that gallery is completely downloaded
     pub async fn download_gallery(&self, downloaded: Option<&DownloadMeta>) -> Result<DownloadMeta> {
         let act = "fetchqueue";
         let add = match downloaded {
             Some(x) => format!("{};{}", x.gid, x.min_res),
-            None => String::from("")
+            None => String::from(""),
         };
 
         // parameters
@@ -156,7 +156,12 @@ impl ClientContext {
             CLIENT_VER, act, add, id, time, key
         );
 
-        let uri = Uri::builder().scheme(Scheme::HTTP).authority("rpc.hentaiathome.net").path_and_query(path).build().unwrap();
+        let uri = Uri::builder()
+            .scheme(Scheme::HTTP)
+            .authority("rpc.hentaiathome.net")
+            .path_and_query(path)
+            .build()
+            .unwrap();
 
         let res = self.client.get(uri).await?;
         let body = res.into_body().collect().await?.to_bytes();
@@ -165,7 +170,14 @@ impl ClientContext {
         Ok(DownloadMeta::parse(body))
     }
 
-    pub async fn downloader_fetch(&self, gid: u32, page: u32, file_index: u32, xres: u32, retry: u32) -> Result<Option<Incoming>> {
+    pub async fn downloader_fetch(
+        &self,
+        gid: u32,
+        page: u32,
+        file_index: u32,
+        xres: u32,
+        retry: u32,
+    ) -> Result<Option<Incoming>> {
         let add = format!("{gid};{page};{file_index};{xres};{retry}");
         let res = self.rpc_request("dlfetch", &add).await?;
         let iter = res.into_iter().filter_map(|s| Uri::try_from(s.to_string()).ok());
@@ -177,4 +189,3 @@ impl ClientContext {
         Ok(None)
     }
 }
-

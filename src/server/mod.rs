@@ -1,5 +1,6 @@
 use std::io;
 use std::net::SocketAddr;
+use std::ops::Deref;
 use std::pin::Pin;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
@@ -15,7 +16,7 @@ use tokio::net::TcpListener;
 use tokio::time::timeout;
 use tokio_openssl::SslStream;
 
-use crate::{ClientContext, Error, Result};
+use crate::{AppContext, Error, Result};
 
 mod service;
 use service::ServerService;
@@ -87,23 +88,31 @@ impl Server {
 
 #[derive(Clone)]
 pub struct ServerContext {
-    pub client: Arc<ClientContext>,
+    pub ctx: Arc<AppContext>,
     pub tls: Arc<RwLock<SslAcceptor>>,
 }
 
 impl ServerContext {
-    pub async fn new(file: File, ctx: &Arc<ClientContext>) -> Result<ServerContext> {
+    pub async fn new(file: File, ctx: &Arc<AppContext>) -> Result<ServerContext> {
         let tls = new_tls_acceptor(file, &ctx.key).await?;
         Ok(ServerContext {
-            client: ctx.clone(),
+            ctx: ctx.clone(),
             tls: Arc::new(RwLock::new(tls)),
         })
     }
 
     pub async fn reload_cert(&self, file: File) -> Result<()> {
-        let tls = new_tls_acceptor(file, &self.client.key).await?;
+        let tls = new_tls_acceptor(file, &self.ctx.key).await?;
         *self.tls.write().unwrap() = tls;
         Ok(())
+    }
+}
+
+impl Deref for ServerContext {
+    type Target = Arc<AppContext>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.ctx
     }
 }
 

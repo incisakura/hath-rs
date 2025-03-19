@@ -8,7 +8,7 @@ use tokio::fs::{File, OpenOptions};
 use tokio::io::{AsyncRead, AsyncWriteExt, ReadBuf};
 use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
-use crate::{ClientContext, Error, Result};
+use crate::{AppContext, Error, Result};
 
 use super::CacheFile;
 
@@ -25,7 +25,7 @@ pub enum CacheStream {
 }
 
 impl CacheStream {
-    pub async fn new(ctx: &ClientContext, file_info: &CacheFile, extra: (&str, &str)) -> Result<Option<CacheStream>> {
+    pub async fn new(ctx: &AppContext, file_info: &CacheFile, extra: (&str, &str)) -> Result<Option<CacheStream>> {
         let path = file_info.path(ctx);
 
         let _ = tokio::fs::create_dir_all(path.parent().unwrap()).await;

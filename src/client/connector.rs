@@ -7,22 +7,21 @@ use http::uri::Scheme;
 use hyper::body::Incoming;
 use hyper::rt::{Read, ReadBufCursor, Write};
 use hyper::{Response, Uri};
+use hyper_util::client::legacy::Client;
 use hyper_util::client::legacy::connect::{Connected, Connection};
+use hyper_util::rt::TokioExecutor;
 use openssl::error::ErrorStack;
 use openssl::ssl::{SslConnector, SslMethod};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::TcpStream;
 use tokio_openssl::SslStream;
-use hyper_util::client::legacy::Client;
-use hyper_util::rt::TokioExecutor;
 use tower::Service;
 
-use crate::error::Error;
 use crate::utils::{BoxBody, LimitedStream, Limiter};
-use crate::{ALPN, Result};
+use crate::{ALPN, Error, Result};
 
 pub(crate) struct HttpClient {
-    client: Client<Conn, BoxBody>
+    client: Client<Conn, BoxBody>,
 }
 
 impl HttpClient {
@@ -32,14 +31,12 @@ impl HttpClient {
         let tls = Arc::new(builder.build());
 
         let connecter = Conn { limiter, tls };
-        let client = Client::builder(TokioExecutor::new())
-            .build(connecter);
+        let client = Client::builder(TokioExecutor::new()).build(connecter);
         Ok(HttpClient { client })
     }
 
     pub async fn get(&self, uri: Uri) -> Result<Response<Incoming>> {
-        self.client.get(uri).await
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e).into()) // todo
+        self.client.get(uri).await.map_err(|e| io::Error::new(io::ErrorKind::Other, e).into()) // todo
     }
 }
 
@@ -67,17 +64,17 @@ impl Service<Uri> for Conn {
                 Some(_) => return Err(Error::UnsupportedProtocol),
                 None => &Scheme::HTTP,
             };
-    
+
             let host = match uri.host() {
                 Some(host) => host,
                 None => return Err(Error::InvalidUri),
             };
-    
+
             let port = uri.port_u16().unwrap_or_else(|| if *scheme == Scheme::HTTPS { 443 } else { 80 });
-    
+
             let stream = TcpStream::connect((host, port)).await?;
             let stream = limiter.limit(stream);
-    
+
             if scheme == &Scheme::HTTPS {
                 let tls = tls.configure()?.into_ssl(host)?;
                 let mut stream = SslStream::new(tls, stream)?;

@@ -2,11 +2,10 @@ use std::fs::File;
 use std::io;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Duration;
 
-use context::ClientContext;
 use openssl::error::ErrorStack;
-use server::ServerContext;
 
 mod cache;
 mod client;
@@ -15,8 +14,10 @@ mod error;
 mod server;
 mod utils;
 
+use crate::context::AppContext;
 use crate::error::Error;
 use crate::server::Server;
+use crate::server::ServerContext;
 use crate::utils::unix_time;
 
 pub type Result<T, E = error::Error> = std::result::Result<T, E>;
@@ -53,13 +54,14 @@ pub async fn main(config: Config) -> Result<()> {
 
     let bind_addr = config.bind;
     // start client & login
-    let ctx = ClientContext::from_config(config)?;
+    let ctx = AppContext::from_config(config)?;
     log::info!("login to H@H network");
     ctx.login().await?;
 
     // start server
     let file = ctx.download_cert().await?;
 
+    let ctx = Arc::new(ctx);
     let server_ctx = ServerContext::new(file, &ctx).await?;
     let server = Server::new(bind_addr, server_ctx).await?;
     tokio::spawn(server.run());
