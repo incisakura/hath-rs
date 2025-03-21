@@ -34,7 +34,7 @@ pub struct Config {
     pub key: String,
     pub bind: SocketAddr,
 
-    pub speedlimit: f64,
+    pub speedlimit: Option<u32>,
     pub cache_dir: PathBuf,
     pub data_dir: PathBuf,
 }

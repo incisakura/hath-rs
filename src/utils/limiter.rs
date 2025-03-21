@@ -17,7 +17,7 @@ pub struct Limiter {
 impl Limiter {
     pub fn new(speed_limit: f64) -> Limiter {
         let bucket = Bucket {
-            updated_at: Instant::now(),
+            last_update: Instant::now(),
             volumn: 0.0,
             speed_limit,
         };
@@ -25,7 +25,6 @@ impl Limiter {
             bucket: Mutex::new(bucket),
             is_unlimited: AtomicBool::new(speed_limit == f64::INFINITY),
         };
-
         Limiter { inner: Arc::new(inner) }
     }
 
@@ -35,7 +34,8 @@ impl Limiter {
         LimitedStream { limiter, pause, stream }
     }
 
-    pub fn set_speed_limit(&self, speed_limit: f64) {
+    /// Set speed limit in Byte/s.
+    pub fn set_limit(&self, speed_limit: f64) {
         if speed_limit == f64::INFINITY {
             self.inner.is_unlimited.swap(true, Ordering::Relaxed);
         } else {
@@ -62,7 +62,7 @@ impl LimiterInner {
 }
 
 struct Bucket {
-    updated_at: Instant,
+    last_update: Instant,
     volumn: f64,
     speed_limit: f64,
 }
@@ -79,10 +79,10 @@ impl Bucket {
     }
 
     fn refill(&mut self, now: Instant) {
-        let elapsed = (now - self.updated_at).as_secs_f64();
+        let elapsed = (now - self.last_update).as_secs_f64();
         let refilled = self.speed_limit * elapsed;
         self.volumn = (self.speed_limit * 0.1).min(self.volumn + refilled);
-        self.updated_at = now;
+        self.last_update = now;
     }
 }
 
