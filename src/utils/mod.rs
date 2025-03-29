@@ -70,7 +70,7 @@ pub fn sha1_digest(data: &[&str]) -> String {
     }
 
     // any rest element
-    for item in data {
+    for item in iter {
         hasher.update(b"-");
         hasher.update(item.as_bytes());
     }
