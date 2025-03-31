@@ -112,11 +112,11 @@ pub struct FileInfo {
 #[derive(Debug)]
 pub enum FileType {
     // Image
-    JPEG,
-    PNG,
-    GIF,
+    Jpeg,
+    Png,
+    Gif,
     WebP,
-    AVIF,
+    Avif,
     JpegXL,
 
     // Video
@@ -130,11 +130,11 @@ pub enum FileType {
 impl FileType {
     pub fn mine_type(&self) -> HeaderValue {
         match self {
-            FileType::JPEG => HeaderValue::from_static("image/jpeg"),
-            FileType::PNG => HeaderValue::from_static("image/png"),
-            FileType::GIF => HeaderValue::from_static("image/gif"),
+            FileType::Jpeg => HeaderValue::from_static("image/jpeg"),
+            FileType::Png => HeaderValue::from_static("image/png"),
+            FileType::Gif => HeaderValue::from_static("image/gif"),
             FileType::WebP => HeaderValue::from_static("image/webp"),
-            FileType::AVIF => HeaderValue::from_static("image/avif"),
+            FileType::Avif => HeaderValue::from_static("image/avif"),
             FileType::JpegXL => HeaderValue::from_static("image/jxl"),
             FileType::MP4 => HeaderValue::from_static("video/mp4"),
             FileType::WebM => HeaderValue::from_static("video/webm"),
@@ -144,11 +144,11 @@ impl FileType {
 
     pub fn extension(&self) -> &str {
         match self {
-            FileType::JPEG => "jpg",
-            FileType::PNG => "png",
-            FileType::GIF => "gif",
+            FileType::Jpeg => "jpg",
+            FileType::Png => "png",
+            FileType::Gif => "gif",
             FileType::WebP => "wbp",
-            FileType::AVIF => "avf",
+            FileType::Avif => "avf",
             FileType::JpegXL => "jxl",
             FileType::MP4 => "mp4",
             FileType::WebM => "webm",
@@ -160,11 +160,11 @@ impl FileType {
 impl From<&str> for FileType {
     fn from(value: &str) -> Self {
         match value {
-            "jpg" => FileType::JPEG,
-            "png" => FileType::PNG,
-            "gif" => FileType::GIF,
+            "jpg" => FileType::Jpeg,
+            "png" => FileType::Png,
+            "gif" => FileType::Gif,
             "wbp" => FileType::WebP,
-            "avf" => FileType::AVIF,
+            "avf" => FileType::Avif,
             "jxl" => FileType::JpegXL,
             "mp4" => FileType::MP4,
             "webm" => FileType::WebM,

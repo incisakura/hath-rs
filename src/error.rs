@@ -16,7 +16,7 @@ pub enum Error {
 
     Hyper(hyper::Error),
     OpenSSL(openssl::error::ErrorStack),
-    SSL(openssl::ssl::Error),
+    Ssl(openssl::ssl::Error),
     BadResponse,
     BadRequest,
     NotFound,
@@ -27,16 +27,6 @@ pub enum Error {
     IncompleteCertFile,
 
     Infallible,
-}
-
-impl Error {
-    pub fn into_status(&self) -> StatusCode {
-        match self {
-            Error::BadRequest => StatusCode::BAD_REQUEST,
-            Error::NotFound => StatusCode::NOT_FOUND,
-            _ => StatusCode::INTERNAL_SERVER_ERROR,
-        }
-    }
 }
 
 impl IntoResponse for Error {
@@ -57,7 +47,7 @@ impl fmt::Display for Error {
             ParseInt(e) => e.fmt(f),
             Hyper(e) => e.fmt(f),
             OpenSSL(e) => e.fmt(f),
-            SSL(e) => e.fmt(f),
+            Ssl(e) => e.fmt(f),
             _ => write!(f, "{:?}", self)
         }
     }
@@ -101,6 +91,6 @@ impl From<openssl::error::ErrorStack> for Error {
 
 impl From<openssl::ssl::Error> for Error {
     fn from(value: openssl::ssl::Error) -> Self {
-        Error::SSL(value)
+        Error::Ssl(value)
     }
 }

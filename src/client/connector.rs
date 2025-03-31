@@ -79,9 +79,9 @@ impl Service<Uri> for Conn {
                 let tls = tls.configure()?.into_ssl(host)?;
                 let mut stream = SslStream::new(tls, stream)?;
                 Pin::new(&mut stream).connect().await?;
-                Ok(AltLimitedStream::TLS(stream))
+                Ok(AltLimitedStream::Tls(stream))
             } else {
-                Ok(AltLimitedStream::TCP(stream))
+                Ok(AltLimitedStream::Tcp(stream))
             }
         })
     }
@@ -89,8 +89,8 @@ impl Service<Uri> for Conn {
 
 /// A stream speed limiter applied on raw TCP connections
 pub enum AltLimitedStream {
-    TCP(LimitedStream<TcpStream>),
-    TLS(SslStream<LimitedStream<TcpStream>>),
+    Tcp(LimitedStream<TcpStream>),
+    Tls(SslStream<LimitedStream<TcpStream>>),
 }
 
 impl Read for AltLimitedStream {
@@ -102,8 +102,8 @@ impl Read for AltLimitedStream {
         let n = {
             let mut buf = ReadBuf::uninit(unsafe { buf.as_mut() });
             let ret = match self.get_mut() {
-                AltLimitedStream::TCP(stream) => Pin::new(stream).poll_read(cx, &mut buf),
-                AltLimitedStream::TLS(stream) => Pin::new(stream).poll_read(cx, &mut buf),
+                AltLimitedStream::Tcp(stream) => Pin::new(stream).poll_read(cx, &mut buf),
+                AltLimitedStream::Tls(stream) => Pin::new(stream).poll_read(cx, &mut buf),
             };
 
             if let Poll::Ready(Ok(())) = ret {
@@ -121,29 +121,29 @@ impl Read for AltLimitedStream {
 impl Write for AltLimitedStream {
     fn is_write_vectored(&self) -> bool {
         match self {
-            AltLimitedStream::TCP(stream) => stream.is_write_vectored(),
-            AltLimitedStream::TLS(stream) => stream.is_write_vectored(),
+            AltLimitedStream::Tcp(stream) => stream.is_write_vectored(),
+            AltLimitedStream::Tls(stream) => stream.is_write_vectored(),
         }
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
         match self.get_mut() {
-            AltLimitedStream::TCP(stream) => Pin::new(stream).poll_flush(cx),
-            AltLimitedStream::TLS(stream) => Pin::new(stream).poll_flush(cx),
+            AltLimitedStream::Tcp(stream) => Pin::new(stream).poll_flush(cx),
+            AltLimitedStream::Tls(stream) => Pin::new(stream).poll_flush(cx),
         }
     }
 
     fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
         match self.get_mut() {
-            AltLimitedStream::TCP(stream) => Pin::new(stream).poll_shutdown(cx),
-            AltLimitedStream::TLS(stream) => Pin::new(stream).poll_shutdown(cx),
+            AltLimitedStream::Tcp(stream) => Pin::new(stream).poll_shutdown(cx),
+            AltLimitedStream::Tls(stream) => Pin::new(stream).poll_shutdown(cx),
         }
     }
 
     fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<Result<usize, io::Error>> {
         match self.get_mut() {
-            AltLimitedStream::TCP(stream) => Pin::new(stream).poll_write(cx, buf),
-            AltLimitedStream::TLS(stream) => Pin::new(stream).poll_write(cx, buf),
+            AltLimitedStream::Tcp(stream) => Pin::new(stream).poll_write(cx, buf),
+            AltLimitedStream::Tls(stream) => Pin::new(stream).poll_write(cx, buf),
         }
     }
 
@@ -153,8 +153,8 @@ impl Write for AltLimitedStream {
         bufs: &[io::IoSlice<'_>],
     ) -> Poll<Result<usize, io::Error>> {
         match self.get_mut() {
-            AltLimitedStream::TCP(stream) => Pin::new(stream).poll_write_vectored(cx, bufs),
-            AltLimitedStream::TLS(stream) => Pin::new(stream).poll_write_vectored(cx, bufs),
+            AltLimitedStream::Tcp(stream) => Pin::new(stream).poll_write_vectored(cx, bufs),
+            AltLimitedStream::Tls(stream) => Pin::new(stream).poll_write_vectored(cx, bufs),
         }
     }
 }
@@ -162,7 +162,7 @@ impl Write for AltLimitedStream {
 impl Connection for AltLimitedStream {
     fn connected(&self) -> Connected {
         let mut connected = Connected::new();
-        if let AltLimitedStream::TLS(stream) = self {
+        if let AltLimitedStream::Tls(stream) = self {
             if stream.ssl().selected_alpn_protocol() == Some(b"h2") {
                 connected = connected.negotiated_h2()
             }

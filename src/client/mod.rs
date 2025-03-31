@@ -22,7 +22,7 @@ impl AppContext {
         let time = crate::unix_time().to_string();
 
         // key
-        let key = sha1_digest(&["hentai@home", act, &add, &id, &time, &self.key]);
+        let key = sha1_digest(&["hentai@home", act, add, &id, &time, &self.key]);
 
         // uri
         let path = format!(
@@ -71,7 +71,7 @@ impl AppContext {
     }
 
     async fn download(&self, uri: Uri, path: PathBuf) -> Result<File> {
-        let mut file = OpenOptions::new().create(true).write(true).read(true).open(path).await?;
+        let mut file = OpenOptions::new().write(true).read(true).create(true).append(true).open(path).await?;
         let response = self.client.get(uri).await?;
 
         log::debug!("download: {}", response.status());
@@ -80,7 +80,7 @@ impl AppContext {
         while let Some(next) = body.frame().await {
             let frame = next?;
             if let Some(chunk) = frame.data_ref() {
-                file.write(&chunk).await?;
+                file.write_all(chunk).await?;
             }
         }
         file.seek(std::io::SeekFrom::Start(0)).await?;

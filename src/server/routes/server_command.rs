@@ -89,7 +89,7 @@ struct CommandService<'a> {
     extra: HashMap<&'a str, &'a str>,
 }
 
-impl<'a> CommandService<'a> {
+impl CommandService<'_> {
     async fn threaded_proxy_test(&self, ctx: &Arc<AppContext>) -> Result<Response<Body>> {
         let hostname = self.extra.get("hostname").ok_or(Error::BadRequest)?;
         let port = self.extra.get("port").ok_or(Error::BadRequest)?;

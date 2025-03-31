@@ -22,7 +22,7 @@ pub fn hex_to_u8(h0: u8, h1: u8) -> Option<u8> {
         _ => return None,
     };
 
-    Some(n0 << 4 | n1)
+    Some((n0 << 4) | n1)
 }
 
 /// # Return

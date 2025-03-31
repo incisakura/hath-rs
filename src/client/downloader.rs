@@ -100,7 +100,7 @@ impl GalleryFile {
         let mut path = todir.to_path_buf();
         path.push(format!("{}.{}", self.filename, self.filetype));
 
-        let mut file = tokio::fs::OpenOptions::new().create(true).write(true).open(path).await?;
+        let mut file = tokio::fs::OpenOptions::new().write(true).create(true).truncate(true).open(path).await?;
         if file.metadata().await?.len() > 0 {
             let hash = file_sha1(&mut file).await?;
             if hash == self.sha1_hash {
@@ -169,7 +169,7 @@ pub async fn download_gallery(ctx: Arc<AppContext>, meta: DownloadMeta) -> Resul
             file.download(&ctx, &todir, m.gid).await?;
         }
 
-        let m = ctx.download_gallery(Some(&m)).await?;
+        let m = ctx.download_gallery(Some(m)).await?;
         if m.gid == 0 {
             meta = None;
         } else  {

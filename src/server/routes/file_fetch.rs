@@ -15,7 +15,7 @@ pub(crate) async fn file_fetch(
     let extra = extra.split_once('/').map_or(extra.as_str(), |(x, _)| x);
 
     let file = CacheFile::try_from(file_id.as_str()).map_err(|_| Error::BadRequest)?;
-    let data = FileFetchExtra::from_path_parts(&extra).ok_or(Error::BadRequest)?;
+    let data = FileFetchExtra::from_path_parts(extra).ok_or(Error::BadRequest)?;
 
     if !ctx.in_static_range(file.static_range()) {
         return Err(Error::BadRequest);
