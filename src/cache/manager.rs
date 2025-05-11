@@ -1,95 +1,119 @@
-use std::collections::HashMap;
-use std::hash::Hash;
-use std::mem;
-use std::ptr::NonNull;
+use std::collections::BTreeMap;
+use std::fs::{DirEntry, Metadata};
+use std::io;
+use std::path::Path;
+use std::time::SystemTime;
 
-pub trait LruItem {
-    type Key;
+use crate::utils::{LruItem, LruTable};
 
-    fn key(&self) -> Self::Key;
+use super::file::{CacheFile, FileHash};
 
-    fn key_ref(&self) -> &Self::Key;
+impl LruItem for CacheFile {
+    type Key = FileHash;
+
+    fn key(&self) -> Self::Key {
+        self.hash
+    }
+
+    fn key_ref(&self) -> &Self::Key {
+        &self.hash
+    }
 }
 
-pub struct LruTable<T: LruItem> {
-    table: HashMap<<T as LruItem>::Key, Box<Node<T>>>,
-    head: Option<NonNull<Node<T>>>,
-    tail: Option<NonNull<Node<T>>>,
+pub struct CacheManager {
+    max_size: u64,
+    current_size: u64,
+    table: LruTable<CacheFile>,
 }
 
-struct Node<T> {
-    value: T,
-    prev: Option<NonNull<Node<T>>>,
-    next: Option<NonNull<Node<T>>>,
-}
-
-impl<T> Node<T> {
-    pub fn new(value: T) -> Node<T> {
-        Node {
-            value,
-            prev: None,
-            next: None,
+impl CacheManager {
+    pub fn new() -> CacheManager {
+        CacheManager {
+            max_size: 0,
+            current_size: 0,
+            table: LruTable::new(),
         }
     }
-}
 
-impl<T> LruTable<T>
-where
-    T: LruItem,
-    <T as LruItem>::Key: Eq + Hash,
-{
-    pub fn len(&self) -> usize {
-        self.table.len()
+    pub fn set_max_size(&mut self, max_size: u64) {
+        self.max_size = max_size;
     }
 
-    pub fn get(&mut self, key: &<T as LruItem>::Key) -> Option<&T> {
-        self.table.get_mut(key).map(|node| {
-            unsafe { LruTable::move_front(node, &mut self.head) };
-            &node.value
-        })
-    }
+    // Sychrononse
+    pub fn build<P: AsRef<Path>>(&mut self, cache_dir: P) -> io::Result<()> {
+        let mut sort_map: BTreeMap<SystemTime, CacheFile> = BTreeMap::new();
 
-    pub fn push_front(&mut self, value: T) -> Option<T> {
-        use std::collections::hash_map::Entry;
-
-        let mut previous = None;
-        let node = match self.table.entry(value.key()) {
-            Entry::Occupied(mut entry) => {
-                // replace existed value to avoid alloc
-                previous = Some(mem::replace(&mut entry.get_mut().value, value));
-                entry.into_mut()
+        for entry in dir_iter(cache_dir)? {
+            for entry in dir_iter(entry.path())? {
+                for (entry, file, meta) in file_iter(entry.path())? {
+                    if file.info.size == meta.len() {
+                        sort_map.insert(meta.accessed().unwrap(), file);
+                    } else {
+                        log::info!("removing file {} for broken data", entry.file_name().to_string_lossy());
+                        std::fs::remove_file(entry.path())?;
+                    }
+                }
             }
-            Entry::Vacant(entry) => entry.insert(Box::new(Node::new(value))),
-        };
-        unsafe { LruTable::move_front(node, &mut self.head) };
-        previous
+        }
+
+        while let Some((_, file)) = sort_map.pop_last() {
+            self.current_size += file.info.size;
+            self.table.push_front(file);
+        }
+        Ok(())
     }
 
-    pub fn pop_back(&mut self) -> Option<T> {
-        self.tail.map(|node| unsafe {
-            let key = node.as_ref().value.key_ref();
-            let node = self.table.remove(key).unwrap_unchecked();
+    pub fn add(&mut self, cache_dir: &Path, file: CacheFile) {
+        self.current_size += file.info.size;
+        self.table.push_front(file);
 
-            self.tail = node.prev;
-            if let Some(mut prev) = node.prev {
-                prev.as_mut().next = None;
-            }
+        while self.current_size > self.max_size {
+            let Some(file) = self.table.pop_back() else { break };
 
-            node.value
-        })
+            let path = file.path(cache_dir);
+            tokio::spawn(async move {
+                if let Err(e) = tokio::fs::remove_file(path).await {
+                    log::error!("unable to remove file: {}: {}", file.filename(false), e);
+                }
+            });
+        }
     }
 
-    unsafe fn move_front(node: &mut Node<T>, head: &mut Option<NonNull<Node<T>>>) {
-        let node_ptr = Some(NonNull::new(node).unwrap());
-        if let Some(mut head) = head {
-            head.as_mut().prev = node_ptr;
-        }
-        if let Some(mut prev) = node.prev {
-            prev.as_mut().next = node.next;
-        }
-        if let Some(mut next) = node.next {
-            next.as_mut().prev = node.prev;
-        }
-        *head = node_ptr;
+    pub fn update(&mut self, file: &CacheFile) {
+        self.table.get(file.key_ref());
     }
 }
+
+fn dir_iter<P: AsRef<Path>>(path: P) -> io::Result<impl Iterator<Item = DirEntry>> {
+    fn is_u8_hex(bytes: &[u8]) -> bool {
+        bytes.len() == 2 && bytes.iter().all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(c))
+    }
+
+    let read_dir = std::fs::read_dir(path)?;
+    Ok(read_dir.into_iter().filter_map(|entry| {
+        let entry = entry.ok()?;
+        let file_type = entry.file_type().ok()?;
+        if file_type.is_dir() && is_u8_hex(entry.file_name().as_encoded_bytes()) {
+            return Some(entry);
+        }
+        None
+    }))
+}
+
+fn file_iter<P: AsRef<Path>>(path: P) -> io::Result<impl Iterator<Item = (DirEntry, CacheFile, Metadata)>> {
+    let read_dir = std::fs::read_dir(path)?;
+    Ok(read_dir.into_iter().filter_map(|entry| {
+        let entry = entry.ok()?;
+        let meta = entry.metadata().ok()?;
+        if meta.is_file() {
+            let path = entry.path();
+            let name = path.file_name().and_then(|s| s.to_str())?;
+            let file = CacheFile::from_filename(name)?;
+            return Some((entry, file, meta));
+        }
+        None
+    }))
+}
+
+unsafe impl Send for CacheManager {}
+unsafe impl Sync for CacheManager {}

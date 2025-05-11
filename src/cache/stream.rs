@@ -26,7 +26,7 @@ pub enum CacheStream {
 
 impl CacheStream {
     pub async fn new(ctx: &AppContext, file_info: &CacheFile, extra: (&str, &str)) -> Result<Option<CacheStream>> {
-        let path = file_info.path(ctx);
+        let path = file_info.path(&ctx.cache_dir);
 
         let _ = tokio::fs::create_dir_all(path.parent().unwrap()).await;
         let mut file = OpenOptions::new().create(true).read(true).append(true).open(&path).await?;
@@ -70,9 +70,11 @@ impl CacheStream {
                 }
             });
 
+            ctx.cache_manager.lock().unwrap().add(&ctx.cache_dir, file_info.clone());
             return Ok(Some(CacheStream::Miss { rx, size }));
         }
 
+        ctx.cache_manager.lock().unwrap().update(file_info);
         let buf = vec![MaybeUninit::uninit(); 8192].leak();
         let buf = ReadBuf::uninit(buf);
         Ok(Some(CacheStream::Hit { file, len, buf }))

@@ -35,6 +35,8 @@ pub struct Config {
     pub bind: SocketAddr,
 
     pub speedlimit: Option<u32>,
+    pub max_cache_size: Option<u64>,
+
     pub cache_dir: PathBuf,
     pub data_dir: PathBuf,
 }

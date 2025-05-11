@@ -1,22 +1,41 @@
 use std::fmt::{self, Formatter, LowerHex};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use http::HeaderValue;
 
 use crate::utils::hex_to_u8;
-use crate::AppContext;
 
 pub struct FetchParseError;
 
 /// Infomation of cached files
+#[derive(Clone)]
 pub struct CacheFile {
     pub hash: FileHash,
     pub info: FileInfo,
 }
 
 impl CacheFile {
-    pub fn path(&self, ctx: &AppContext) -> PathBuf {
-        let mut path = ctx.cache_dir.clone();
+    pub fn from_filename(filename: &str) -> Option<CacheFile> {
+        let (name, extension) = filename.rsplit_once('.')?;
+        let mut name_iter = name.split('-');
+        let hash = name_iter.next().and_then(|s| FileHash::try_from(s).ok())?;
+        let size: u64 = name_iter.next().and_then(|s| s.parse().ok())?;
+        let x_res: u32 = name_iter.next().and_then(|s| s.parse().ok())?;
+        let y_res: u32 = name_iter.next().and_then(|s| s.parse().ok())?;
+        let extension = FileType::from(extension);
+
+        Some(CacheFile {
+            hash,
+            info: FileInfo {
+                size,
+                res: (x_res, y_res),
+                typ: extension,
+            },
+        })
+    }
+
+    pub fn path(&self, cache_dir: &Path) -> PathBuf {
+        let mut path = cache_dir.to_path_buf();
         let filename = self.filename(false);
         path.push(filename.get(..2).unwrap());
         path.push(filename.get(2..4).unwrap());
@@ -68,7 +87,7 @@ impl TryFrom<&str> for CacheFile {
     }
 }
 
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Hash, PartialEq, Eq, Clone, Copy)]
 pub struct FileHash([u8; 20]);
 
 impl LowerHex for FileHash {
@@ -102,6 +121,7 @@ impl TryFrom<&str> for FileHash {
     }
 }
 
+#[derive(Clone)]
 pub struct FileInfo {
     pub size: u64,
     /// Resulution: x, y
@@ -109,7 +129,7 @@ pub struct FileInfo {
     pub typ: FileType,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum FileType {
     // Image
     Jpeg,

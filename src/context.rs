@@ -1,7 +1,8 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
-use std::sync::RwLock;
+use std::sync::{Mutex, RwLock};
 
+use crate::cache::CacheManager;
 use crate::client::HttpClient;
 use crate::utils::Limiter;
 use crate::{Config, Error};
@@ -17,18 +18,21 @@ pub struct AppContext {
     pub key: String,
     pub cache_dir: PathBuf,
     pub data_dir: PathBuf,
-    /// Local speedlimit override
+
+    /// Local config override
     speedlimit: Option<u32>,
+    max_cache_size: Option<u64>,
 
     // Mutable Context
     pub limiter: Limiter,
     pub mut_context: RwLock<MutContext>,
+    pub cache_manager: Mutex<CacheManager>,
 
     pub client: HttpClient,
 }
 
 impl AppContext {
-    pub fn from_config(config: Config) -> Result<AppContext, openssl::error::ErrorStack> {
+    pub fn from_config(config: Config) -> Result<AppContext, Error> {
         let limiter = match config.speedlimit {
             Some(n) if n > 0 => Limiter::new((n * 1024) as f64),
             _ => Limiter::new(f64::INFINITY),
@@ -36,14 +40,22 @@ impl AppContext {
         let client = HttpClient::new(limiter.clone())?;
         let mut_context = RwLock::new(MutContext::default());
 
+        let mut cache_manager = CacheManager::new();
+        if let Some(size) = config.max_cache_size {
+            cache_manager.set_max_size(size);
+        }
+        cache_manager.build(&config.cache_dir)?;
+
         Ok(AppContext {
             id: config.id,
             key: config.key,
             cache_dir: config.cache_dir,
             data_dir: config.data_dir,
             speedlimit: config.speedlimit,
+            max_cache_size: config.max_cache_size,
             limiter,
             mut_context,
+            cache_manager: Mutex::new(cache_manager),
             client,
         })
     }
@@ -77,6 +89,12 @@ impl AppContext {
                 "throttle_bytes" => {
                     if self.speedlimit.is_none() && speedlimit == 0f64 {
                         speedlimit = val.parse::<u32>()? as f64;
+                    }
+                }
+                "diskremaining_bytes" => {
+                    if self.max_cache_size.is_none() {
+                        let size = val.parse::<u64>()?;
+                        self.cache_manager.lock().unwrap().set_max_size(size);
                     }
                 }
                 "use_less_memory" => {}

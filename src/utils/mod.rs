@@ -10,6 +10,9 @@ pub use self::body::BoxBody;
 pub mod limiter;
 pub use self::limiter::{LimitedStream, Limiter};
 
+mod lru_table;
+pub use lru_table::*;
+
 pub fn hex_to_u8(h0: u8, h1: u8) -> Option<u8> {
     let n0 = match h0 {
         b'0'..=b'9' => h0 - b'0',
