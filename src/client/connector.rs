@@ -36,7 +36,7 @@ impl HttpClient {
     }
 
     pub async fn get(&self, uri: Uri) -> Result<Response<Incoming>> {
-        self.client.get(uri).await.map_err(|e| io::Error::new(io::ErrorKind::Other, e).into()) // todo
+        self.client.get(uri).await.map_err(|e| io::Error::other(e).into())
     }
 }
 
