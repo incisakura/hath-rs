@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::fs::{DirEntry, Metadata};
 use std::io;
 use std::path::Path;
@@ -41,22 +40,18 @@ impl CacheManager {
 
     // Sychrononse
     pub fn build<P: AsRef<Path>>(&mut self, cache_dir: P) -> io::Result<()> {
-        let mut sort_map: BTreeMap<SystemTime, CacheFile> = BTreeMap::new();
-
+        let mut vec: Vec<(SystemTime, CacheFile)> = Vec::new();
         for entry in dir_iter(cache_dir)? {
             for entry in dir_iter(entry.path())? {
-                for (entry, file, meta) in file_iter(entry.path())? {
-                    if file.info.size == meta.len() {
-                        sort_map.insert(meta.accessed().unwrap(), file);
-                    } else {
-                        log::info!("removing file {} for broken data", entry.file_name().to_string_lossy());
-                        std::fs::remove_file(entry.path())?;
-                    }
+                for (file, meta) in file_iter(entry.path())? {
+                    let time = meta.accessed().unwrap();
+                    vec.push((time, file));
                 }
             }
         }
 
-        while let Some((_, file)) = sort_map.pop_last() {
+        vec.sort_unstable_by_key(|x| x.0);
+        for (_, file) in vec {
             self.current_size += file.info.size;
             self.table.push_front(file);
         }
@@ -100,7 +95,7 @@ fn dir_iter<P: AsRef<Path>>(path: P) -> io::Result<impl Iterator<Item = DirEntry
     }))
 }
 
-fn file_iter<P: AsRef<Path>>(path: P) -> io::Result<impl Iterator<Item = (DirEntry, CacheFile, Metadata)>> {
+fn file_iter<P: AsRef<Path>>(path: P) -> io::Result<impl Iterator<Item = (CacheFile, Metadata)>> {
     let read_dir = std::fs::read_dir(path)?;
     Ok(read_dir.into_iter().filter_map(|entry| {
         let entry = entry.ok()?;
@@ -109,7 +104,7 @@ fn file_iter<P: AsRef<Path>>(path: P) -> io::Result<impl Iterator<Item = (DirEnt
             let path = entry.path();
             let name = path.file_name().and_then(|s| s.to_str())?;
             let file = CacheFile::from_filename(name)?;
-            return Some((entry, file, meta));
+            return Some((file, meta));
         }
         None
     }))
